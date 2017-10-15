@@ -136,14 +136,25 @@ RUN \
     && make \
     && make install \
     ; fi \
+# build lualib
+    && if [ $JANUS_WITH_LUA = "1" ]; then curl -fSL http://www.lua.org/ftp/lua-5.3.4.tar.gz -o ${BUILD_SRC}/lua-5.3.4.tar.gz\
+    && cd ${BUILD_SRC} \
+    && tar xvzf lua-5.3.4.tar.gz \
+    && rm lua-5.3.4.tar.gz \
+    && cd lua-5.3.4 \
+    && make linux MYLIBS=-ltermcap \
+    && make install \
+    ; fi \
 # build janus-gateway
     && git clone https://github.com/meetecho/janus-gateway.git ${BUILD_SRC}/janus-gateway \
     && if [ $JANUS_WITH_FREESWITCH_PATCH = "1" ]; then curl -fSL https://raw.githubusercontent.com/krull/docker-misc/master/init_fs/tmp/janus_sip.c.patch -o ${BUILD_SRC}/janus-gateway/plugins/janus_sip.c.patch && cd ${BUILD_SRC}/janus-gateway/plugins && patch < janus_sip.c.patch; fi \
     && cd ${BUILD_SRC}/janus-gateway \
+    && git checkout janus-lua \
     && ./autogen.sh \
     && ./configure ${JANUS_CONFIG_DEPS} $JANUS_CONFIG_OPTIONS \
     && make \
     && make install \
+    && make config \
 # folder ownership
     && chown -R janus:janus /opt/janus \
 # build cleanup
