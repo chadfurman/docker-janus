@@ -3,8 +3,8 @@
 # https://github.com/krull/docker-janus
 ############################################################
 
-# set base image debian jessie
-FROM debian:jessie
+# set base image debian stretch
+FROM debian:stretch
 
 # file maintainer author
 MAINTAINER brendan jocson <brendan@jocson.eu>
@@ -39,6 +39,7 @@ ARG JANUS_BUILD_DEPS_DEV="\
     libglib2.0-dev \
     libopus-dev \
     libogg-dev \
+    liblua5.3-dev \
     pkg-config \
     "
 ARG JANUS_BUILD_DEPS_EXT="\
@@ -80,6 +81,7 @@ RUN \
     && if [ $JANUS_WITH_RABBITMQ = "0" ]; then export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-rabbitmq"; fi \
     && /usr/sbin/groupadd -r janus && /usr/sbin/useradd -r -g janus janus \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-cache search lua 5.3  \
     && DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install $JANUS_BUILD_DEPS_DEV ${JANUS_BUILD_DEPS_EXT} \
 # build libsrtp
     && curl -fSL https://github.com/cisco/libsrtp/archive/v2.0.0.tar.gz -o ${BUILD_SRC}/v2.0.0.tar.gz \
@@ -136,15 +138,15 @@ RUN \
     && make \
     && make install \
     ; fi \
-# build lualib
-    && if [ $JANUS_WITH_LUA = "1" ]; then curl -fSL http://www.lua.org/ftp/lua-5.3.4.tar.gz -o ${BUILD_SRC}/lua-5.3.4.tar.gz\
-    && cd ${BUILD_SRC} \
-    && tar xvzf lua-5.3.4.tar.gz \
-    && rm lua-5.3.4.tar.gz \
-    && cd lua-5.3.4 \
-    && make linux MYLIBS=-ltermcap \
-    && make install \
-    ; fi \
+## build lualib
+#    && if [ $JANUS_WITH_LUA = "1" ]; then curl -fSL http://www.lua.org/ftp/lua-5.3.4.tar.gz -o ${BUILD_SRC}/lua-5.3.4.tar.gz\
+#    && cd ${BUILD_SRC} \
+#    && tar xvzf lua-5.3.4.tar.gz \
+#    && rm lua-5.3.4.tar.gz \
+#    && cd lua-5.3.4 \
+#    && make linux MYLIBS=-ltermcap \
+#    && make install \
+#    ; fi \
 # build janus-gateway
     && git clone https://github.com/meetecho/janus-gateway.git ${BUILD_SRC}/janus-gateway \
     && if [ $JANUS_WITH_FREESWITCH_PATCH = "1" ]; then curl -fSL https://raw.githubusercontent.com/krull/docker-misc/master/init_fs/tmp/janus_sip.c.patch -o ${BUILD_SRC}/janus-gateway/plugins/janus_sip.c.patch && cd ${BUILD_SRC}/janus-gateway/plugins && patch < janus_sip.c.patch; fi \
