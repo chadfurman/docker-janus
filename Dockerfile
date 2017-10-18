@@ -1,16 +1,14 @@
 ############################################################
 # Dockerfile - Janus Gateway on Debian Jessie
-# https://github.com/krull/docker-janus
+# https://github.com/chadfurman/docker-janus
 ############################################################
 
 # set base image debian stretch
-FROM debian:stretch
-
-# file maintainer author
-MAINTAINER brendan jocson <brendan@jocson.eu>
+FROM ubuntu:17.04
 
 # docker build environments
 ENV CONFIG_PATH="/opt/janus/etc/janus"
+ADD ./janus-gateway /opt/janus-src
 
 # docker build arguments
 ARG BUILD_SRC="/usr/local/src"
@@ -23,6 +21,7 @@ ARG JANUS_WITH_WEBSOCKETS="1"
 ARG JANUS_WITH_MQTT="0"
 ARG JANUS_WITH_PFUNIX="1"
 ARG JANUS_WITH_RABBITMQ="0"
+ARG JANUS_WITH_LUA="1"
 # https://goo.gl/dmbvc1 
 ARG JANUS_WITH_FREESWITCH_PATCH="0"
 ARG JANUS_CONFIG_DEPS="\
@@ -31,6 +30,10 @@ ARG JANUS_CONFIG_DEPS="\
 ARG JANUS_CONFIG_OPTIONS="\
     "
 ARG JANUS_BUILD_DEPS_DEV="\
+    unzip \
+    git \
+    curl \
+    wget \
     libcurl4-openssl-dev \
     libjansson-dev \
     libnice-dev \
@@ -74,14 +77,14 @@ RUN \
     && if [ $JANUS_WITH_BORINGSSL = "1" ]; then export JANUS_BUILD_DEPS_DEV="$JANUS_BUILD_DEPS_DEV golang-go" && export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --enable-boringssl --enable-dtls-settimeout"; fi \
     && if [ $JANUS_WITH_DOCS = "1" ]; then export JANUS_BUILD_DEPS_DEV="$JANUS_BUILD_DEPS_DEV doxygen graphviz" && export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --enable-docs"; fi \
     && if [ $JANUS_WITH_REST = "1" ]; then export JANUS_BUILD_DEPS_DEV="$JANUS_BUILD_DEPS_DEV libmicrohttpd-dev"; else export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-rest"; fi \
+    && if [ $JANUS_WITH_LUA = "1" ]; then export JANUS_BUILD_DEPS_DEV="$JANUS_BUILD_DEPS_DEV luarocks"; else export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-rest"; fi \
     && if [ $JANUS_WITH_DATACHANNELS = "0" ]; then export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-data-channels"; fi \
     && if [ $JANUS_WITH_WEBSOCKETS = "0" ]; then export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-websockets"; fi \
     && if [ $JANUS_WITH_MQTT = "0" ]; then export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-mqtt"; fi \
     && if [ $JANUS_WITH_PFUNIX = "0" ]; then export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-unix-sockets"; fi \
     && if [ $JANUS_WITH_RABBITMQ = "0" ]; then export JANUS_CONFIG_OPTIONS="$JANUS_CONFIG_OPTIONS --disable-rabbitmq"; fi \
-    && /usr/sbin/groupadd -r janus && /usr/sbin/useradd -r -g janus janus \
+    && /usr/sbin/adduser --gecos 'janus,,,,' --disabled-login janus \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-cache search lua 5.3  \
     && DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install $JANUS_BUILD_DEPS_DEV ${JANUS_BUILD_DEPS_EXT} \
 # build libsrtp
     && curl -fSL https://github.com/cisco/libsrtp/archive/v2.0.0.tar.gz -o ${BUILD_SRC}/v2.0.0.tar.gz \
@@ -139,24 +142,31 @@ RUN \
     && make install \
     ; fi \
 ## build lualib
-#    && if [ $JANUS_WITH_LUA = "1" ]; then curl -fSL http://www.lua.org/ftp/lua-5.3.4.tar.gz -o ${BUILD_SRC}/lua-5.3.4.tar.gz\
-#    && cd ${BUILD_SRC} \
-#    && tar xvzf lua-5.3.4.tar.gz \
-#    && rm lua-5.3.4.tar.gz \
-#    && cd lua-5.3.4 \
-#    && make linux MYLIBS=-ltermcap \
+    && if [ $JANUS_WITH_LUA = "1" ]; then curl -fSL http://www.lua.org/ftp/lua-5.3.4.tar.gz -o ${BUILD_SRC}/lua-5.3.4.tar.gz\
+    && cd ${BUILD_SRC} \
+    && tar xvzf lua-5.3.4.tar.gz \
+    && rm lua-5.3.4.tar.gz \
+    && cd lua-5.3.4 \
+    && make linux \
+    && make install \
+#    && wget https://luarocks.org/releases/luarocks-2.4.3.tar.gz \
+#    && tar zxpf luarocks-2.4.3.tar.gz \
+#    && cd luarocks-2.4.3 \
+#    && ./configure \
 #    && make install \
-#    ; fi \
+#    && make bootstrap \
+    ; fi \
 # build janus-gateway
-    && git clone https://github.com/meetecho/janus-gateway.git ${BUILD_SRC}/janus-gateway \
+    && git clone https://github.com/meetecho/janus-gateway ${BUILD_SRC}/janus-gateway \
+    # && cp -R /opt/janus-src ${BUILD_SRC}/janus-gateway \
     && if [ $JANUS_WITH_FREESWITCH_PATCH = "1" ]; then curl -fSL https://raw.githubusercontent.com/krull/docker-misc/master/init_fs/tmp/janus_sip.c.patch -o ${BUILD_SRC}/janus-gateway/plugins/janus_sip.c.patch && cd ${BUILD_SRC}/janus-gateway/plugins && patch < janus_sip.c.patch; fi \
     && cd ${BUILD_SRC}/janus-gateway \
-    && git checkout janus-lua \
+    && if [ $JANUS_WITH_LUA = "1" ]; then git checkout janus-lua; fi \
     && ./autogen.sh \
     && ./configure ${JANUS_CONFIG_DEPS} $JANUS_CONFIG_OPTIONS \
     && make \
     && make install \
-    && make config \
+    && make configs \
 # folder ownership
     && chown -R janus:janus /opt/janus \
 # build cleanup
@@ -179,6 +189,9 @@ RUN \
     && rm -rf /usr/share/doc/* \
     && rm -rf /var/lib/apt/*
 
+RUN luarocks install luajson \
+  && luarocks install ansicolors
+
 USER janus
 
-CMD ["/opt/janus/bin/janus"]
+CMD ["/bin/sh", "-c", "$(luarocks path --bin) && /opt/janus/bin/janus"]
