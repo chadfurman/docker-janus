@@ -194,4 +194,10 @@ RUN luarocks install luajson \
 
 USER janus
 
+# websockets port
+EXPOSE 8188 
+
+# http port
+EXPOSE 8088 
+
 CMD ["/bin/sh", "-c", "$(luarocks path --bin) && /opt/janus/bin/janus"]
